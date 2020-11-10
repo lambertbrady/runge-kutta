@@ -1,5 +1,3 @@
-import p5 from 'p5'
-
 function addArrays(A, B) {
   return A.map((a, i) => a + B[i])
 }
@@ -14,6 +12,7 @@ function multArray(arr, scalar) {
 
 export default class RungeKuttaMethod {
   // defines an explicit Runge-Kutta method
+  // following strings are allowed: 'euler' | 'midpoint' | 'rk4'
   constructor(numStages, nodes, rkMatrix, weights) {
     // Arguments in terms of standard Runge-Kutta Method notation:
     // numStages:
@@ -129,151 +128,93 @@ export default class RungeKuttaMethod {
     }
   }
 
-  yNextScalar(dy_dt, y, t, stepSize) {
-    // sum of weights * slopes <==> b * k
+  yNextScalar(dy_dt, t, y, h) {
     const slopes = []
-    const bkSum = this.weights.reduce((sum, b, stageIndex) => {
-      let y_k = y
-      let t_k = t
-      if (stageIndex > 0) {
-        // sum of matrix coefficents * slopes from previous stages
-        const akSum = this.rkMatrix[stageIndex - 1].reduce(
-          (sum, a, j) => sum + a * slopes[j],
-          0
-        )
-        y_k += stepSize * akSum
-        t_k += stepSize * this.nodes[stageIndex - 1]
-      }
-      const k = dy_dt(y_k, t_k)
+    const bkSum = [...Array(this.numStages)].reduce((sum, _, i) => {
+      const akSum = slopes.reduce((innerSum, slope, j) => {
+        return innerSum + this.rkMatrix[i - 1][j] * slope
+      }, 0)
+
+      const k = dy_dt(y + h * akSum, t + h * this.nodes[i - 1])
       slopes.push(k)
-      return sum + b * k
+
+      return sum + this.weights[i] * slopes[i]
     }, 0)
-    return y + stepSize * bkSum
+
+    return y + h * bkSum
   }
 
-  yNext(dy_dt, y, t, stepSize) {
-    const isScalar = typeof y === 'number'
+  yNextArray(dy_dt, t, y, h) {
     const slopes = []
-    ///////////////////////
-    let bkSum = isScalar ? 0 : y.map(() => 0)
-    // let bkSum = 0;
-    // const bkSum = y.map(() => 0);
-    ///////////////////////
-    for (let i = 0; i < this.numStages; i++) {
-      let yInput = y
-      let tInput = t
-
-      if (i > 0) {
-        ///////////////////////
-        let akSum = isScalar ? 0 : y.map(() => 0)
-        // let akSum = 0;
-        // const akSum = y.map(() => 0);
-        ///////////////////////
-        for (let j = 0; j < i; j++) {
-          ///////////////////////
-          // akSum = add(akSum, mult(this.rkMatrix[i-1][j], slopes[j]));
-          if (isScalar) {
-            akSum += this.rkMatrix[i - 1][j] * slopes[j]
-          } else {
-            akSum = addArrays(
-              akSum,
-              multArray(slopes[j], this.rkMatrix[i - 1][j])
+    const bkSum = [...Array(this.numStages)].reduce(
+      (sum, _, i) => {
+        const akSum = slopes.reduce(
+          (innerSum, slope, j) => {
+            return addArrays(
+              innerSum,
+              multArray(slope, this.rkMatrix[i - 1][j])
             )
-          }
-          ///////////////////////
-        }
-        ///////////////////////
-        // yInput = add(yInput, mult(stepSize, akSum));
-        if (isScalar) {
-          yInput += stepSize * akSum
-        } else {
-          yInput = addArrays(yInput, multArray(akSum, stepSize))
-        }
-        ///////////////////////
-        tInput += stepSize * this.nodes[i - 1]
-      }
+          },
+          y.map(() => 0)
+        )
 
-      const k = dy_dt(yInput, tInput)
-      slopes.push(k)
+        const k = dy_dt(
+          addArrays(y, multArray(akSum, h)),
+          t + h * this.nodes[i - 1]
+        )
+        slopes.push(k)
 
-      ///////////////////////
-      // bkSum = add(bkSum, mult(this.weights[i], k));
-      if (isScalar) {
-        bkSum += this.weights[i] * k
-      } else {
-        bkSum = addArrays(bkSum, multArray(k, this.weights[i]))
-      }
-      ///////////////////////
-    }
+        return addArrays(sum, multArray(slopes[i], this.weights[i]))
+      },
+      y.map(() => 0)
+    )
 
-    if (isScalar) {
-      return y + stepSize * bkSum
-    } else {
-      return addArrays(y, multArray(bkSum, stepSize))
-    }
+    return addArrays(y, multArray(bkSum, h))
   }
 
-  // TODO: get rid of tRange array (tInitial to tFinal) since only the total t matters (i.e., tFinal - tInitial)
+  yNext(dy_dt, t, y, h) {
+    return typeof y === 'number'
+      ? this.yNextScalar(dy_dt, t, y, h)
+      : this.yNextArray(dy_dt, t, y, h)
+  }
+
   *makeIterator(
     dy_dt,
     yInitial,
-    [tInitial = 0, tFinal = 10] = [],
+    // Array: [tInitial, tFinal] || Number: tFinal >> [0, tFinal]
+    tRange,
     stepSize = 1
   ) {
     // k_1 = dy_dt(t_n, y_n)
     // k_2 = f(k_1) = dy_dt(t_n + h * c_2, y_n + h * (a_21 * k_1))
     // k_s = f(k_(s-1)) = dy_dt(t_n + h * c_s, y_n + h * (a_s1*k_1 + a_s2*k_2 + ... + a_s(s-1)*k_(s-1)))
     // y_(n+1) = y_n + h * (b_1*k_1 + b_2*k_2 + ... + b_s*k_s);
+
+    let tInitial, tFinal
+    if (Array.isArray(tRange)) {
+      ;[tInitial, tFinal] = tRange
+    } else if (typeof tRange === 'number') {
+      tInitial = 0
+      tFinal = tRange
+    } else {
+      throw new Error('third argument must be array or number')
+    }
+
     if (!(typeof dy_dt(yInitial, tInitial) === typeof yInitial)) {
       throw new Error(
         'Return value of first argument must match type of second argument, such that typeof f(y,t) === typeof y'
       )
     }
-    // const isScalar = (typeof yInitial === 'number');
-    yield [tInitial, yInitial]
+
+    yield { t: tInitial, y: yInitial }
     let y = yInitial
     for (let t = tInitial; t <= tFinal; t += stepSize) {
-      // if (isScalar) {
-      //    y = this.yNextScalar(dy_dt, y, t, stepSize);
-      // } else {
-      y = this.yNext(dy_dt, y, t, stepSize)
-      yield [t, y]
-    }
-  }
-  *makeIteratorVec(
-    dy_dt,
-    yInitial,
-    [tInitial = 0, tFinal = 10] = [],
-    stepSize = 1
-  ) {
-    // y0, f(y,t), h, t0, tn
-    let y = yInitial
-    yield y
-    for (let t = tInitial; t < tFinal; t += stepSize) {
-      // sum of weights * slopes <==> b * k
-      const slopes = []
-      const bkSum = this.weights.reduce((sum, weight, stageIndex) => {
-        let y_k = y
-        let t_k = t
-        if (stageIndex > 0) {
-          // sum of matrix coefficents * slopes from previous stages
-          const akSum = this.rkMatrix[stageIndex - 1].reduce(
-            (sum, a, j) => sum.add(p5.Vector.mult(slopes[j], a)),
-            new p5.Vector()
-          )
-          y_k.add(akSum.mult(stepSize))
-          t_k += stepSize * this.nodes[stageIndex - 1]
-        }
-        const k = dy_dt(y_k, t_k)
-        slopes.push(k)
-        return sum.add(slopes[stageIndex].mult(weight))
-      }, new p5.Vector())
-      // k_1 = dy_dt(t_n, y_n)
-      // k_2 = f(k_1) = dy_dt(t_n + h * c_2, y_n + h * (a_21 * k_1))
-      // k_s = f(k_(s-1)) = dy_dt(t_n + h * c_s, y_n + h * (a_s1*k_1 + a_s2*k_2 + ... + a_s(s-1)*k_(s-1)))
-      // y_(n+1) = y_n + h * (b_1*k_1 + b_2*k_2 + ... + b_s*k_s);
-      y.add(bkSum.mult(stepSize))
-      yield y
+      y = this.yNext(dy_dt, t, y, stepSize)
+      yield { t: t, y: y }
     }
   }
 }
+
+export const EulerMethod = new RungeKuttaMethod('euler')
+export const MidpointMethod = new RungeKuttaMethod('midpoint')
+export const RK4Method = new RungeKuttaMethod('rk4')
