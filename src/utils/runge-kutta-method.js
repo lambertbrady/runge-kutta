@@ -6,7 +6,11 @@ function addArrays(A, B) {
 //   return A.map((a, i) => a * B[i]);
 // }
 
-function multArray(arr, scalar) {
+function multArray(scalar, arr) {
+  // swap variables if needed, so order of argument types doesn't matter
+  if (Array.isArray(scalar)) {
+    ;[arr, scalar] = [scalar, arr]
+  }
   return arr.map((val) => scalar * val)
 }
 
@@ -128,54 +132,60 @@ export default class RungeKuttaMethod {
     }
   }
 
-  yNextScalar(dy_dt, t, y, h) {
-    const slopes = []
-    const bkSum = [...Array(this.numStages)].reduce((sum, _, i) => {
-      const akSum = slopes.reduce((innerSum, slope, j) => {
-        return innerSum + this.rkMatrix[i - 1][j] * slope
-      }, 0)
+  yNextScalar(dy_dt, t, y, stepSize) {
+    const slopes = [...Array(this.numStages)]
 
-      const k = dy_dt(y + h * akSum, t + h * this.nodes[i - 1])
-      slopes.push(k)
+    let weightedSumSlopes = 0
+    for (let i = 0; i < this.numStages; i++) {
+      let weightedSumCoefficients = 0
+      for (let j = 0; j < i; j++) {
+        weightedSumCoefficients += this.rkMatrix[i - 1][j] * slopes[j]
+      }
 
-      return sum + this.weights[i] * slopes[i]
-    }, 0)
+      // TODO: if dy_dt is independent of t, calculation of t is unnecessary
+      slopes[i] = dy_dt(
+        y + stepSize * weightedSumCoefficients,
+        t + stepSize * this.nodes[i - 1]
+      )
 
-    return y + h * bkSum
+      weightedSumSlopes += this.weights[i] * slopes[i]
+    }
+
+    return y + stepSize * weightedSumSlopes
   }
 
-  yNextArray(dy_dt, t, y, h) {
-    const slopes = []
-    const bkSum = [...Array(this.numStages)].reduce(
-      (sum, _, i) => {
-        const akSum = slopes.reduce(
-          (innerSum, slope, j) => {
-            return addArrays(
-              innerSum,
-              multArray(slope, this.rkMatrix[i - 1][j])
-            )
-          },
-          y.map(() => 0)
+  yNextArray(dy_dt, t, y, stepSize) {
+    const slopes = [...Array(this.numStages)]
+
+    let weightedSumSlopes = y.map(() => 0)
+    for (let i = 0; i < this.numStages; i++) {
+      let weightedSumCoefficients = y.map(() => 0)
+      for (let j = 0; j < i; j++) {
+        weightedSumCoefficients = addArrays(
+          weightedSumCoefficients,
+          multArray(this.rkMatrix[i - 1][j], slopes[j])
         )
+      }
 
-        const k = dy_dt(
-          addArrays(y, multArray(akSum, h)),
-          t + h * this.nodes[i - 1]
-        )
-        slopes.push(k)
+      // TODO: if dy_dt is independent of t, calculation of t is unnecessary
+      slopes[i] = dy_dt(
+        addArrays(y, multArray(stepSize, weightedSumCoefficients)),
+        t + stepSize * this.nodes[i - 1]
+      )
 
-        return addArrays(sum, multArray(slopes[i], this.weights[i]))
-      },
-      y.map(() => 0)
-    )
+      weightedSumSlopes = addArrays(
+        weightedSumSlopes,
+        multArray(this.weights[i], slopes[i])
+      )
+    }
 
-    return addArrays(y, multArray(bkSum, h))
+    return addArrays(y, multArray(stepSize, weightedSumSlopes))
   }
 
-  yNext(dy_dt, t, y, h) {
+  yNext(dy_dt, t, y, stepSize) {
     return typeof y === 'number'
-      ? this.yNextScalar(dy_dt, t, y, h)
-      : this.yNextArray(dy_dt, t, y, h)
+      ? this.yNextScalar(dy_dt, t, y, stepSize)
+      : this.yNextArray(dy_dt, t, y, stepSize)
   }
 
   *makeIterator(

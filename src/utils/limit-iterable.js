@@ -6,7 +6,7 @@ export default function limitIterable(
   iterable,
   iterationLimit,
   callback
-  // callback = (itCount, result, it) => undefined
+  // callback = (result, itCount, it) => undefined
   // callback is optional and will be executed if iterator terminates early
 ) {
   // validation
@@ -37,7 +37,7 @@ export default function limitIterable(
       return result.value
     } else {
       // iteration was terminated before completion (note that iterator will still accept calls to next() inside the callback function)
-      return callback(iterationCount, result, iterator)
+      return callback(result, iterationCount, iterator)
     }
   })()
 }
