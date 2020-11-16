@@ -2,6 +2,7 @@ export function isIterable(obj) {
   return Symbol.iterator in Object(obj)
 }
 
+// TODO: add option to limit by value of result, or whichever comes first (itCount || result.value)
 export default function limitIterable(
   iterable,
   iterationLimit,

@@ -2,10 +2,6 @@ function addArrays(A, B) {
   return A.map((a, i) => a + B[i])
 }
 
-// function dotArrays(A, B) {
-//   return A.map((a, i) => a * B[i]);
-// }
-
 function multArray(scalar, arr) {
   // swap variables if needed, so order of argument types doesn't matter
   if (Array.isArray(scalar)) {
@@ -16,8 +12,9 @@ function multArray(scalar, arr) {
 
 export default class RungeKuttaMethod {
   // defines an explicit Runge-Kutta method
-  // following strings are allowed: 'euler' | 'midpoint' | 'rk4'
-  constructor(numStages, nodes, rkMatrix, weights) {
+  // config: { numStages, nodes, rkMatrix, weights, preset }
+  // when preset is defined, all other values are ignored
+  constructor(config) {
     // Arguments in terms of standard Runge-Kutta Method notation:
     // numStages:
     // s
@@ -40,46 +37,52 @@ export default class RungeKuttaMethod {
     // * Array with length equal to (s)
     // * Array entries are numbers in range [0,1]
     // * Sum of array entries must equal 1 (approximately, to allow for fractional rounding errors)
+    // weightsAdaptive (optional):
+    // * Equivalent to weights, but one order lower
+    // * Difference between higher order method (weights) and lower order method (weightsAdaptive) gives estimate of local truncation error at each step
 
-    if (typeof numStages === 'string') {
-      ;[numStages, nodes, rkMatrix, weights] = RungeKuttaMethod.getDefaults(
-        numStages
-      )
-    } else {
-      RungeKuttaMethod.validate(...arguments)
-    }
+    const { numStages, nodes, rkMatrix, weights } = config.preset
+      ? RungeKuttaMethod.getPresetConfig(config.preset)
+      : RungeKuttaMethod.validate(config) && config
 
     this.numStages = numStages
     this.nodes = nodes
     this.rkMatrix = rkMatrix
     this.weights = weights
+    // this.weightsAdaptive = weightsAdaptive
   }
 
-  static getDefaults(name) {
-    switch (name) {
+  static getPresetConfig(preset) {
+    switch (preset) {
       case 'euler':
-        return [1, [], [], [1]]
+        return { numStages: 1, nodes: [], rkMatrix: [], weights: [1] }
       case 'midpoint':
-        return [2, [0.5], [[0.5]], [0, 1]]
+        return {
+          numStages: 2,
+          nodes: [0.5],
+          rkMatrix: [[0.5]],
+          weights: [0, 1]
+        }
       case 'rk4':
-        return [
-          4,
-          [0.5, 0.5, 1],
-          [[0.5], [0, 0.5], [0, 0, 1]],
-          [0.167, 0.333, 0.333, 0.167]
-        ]
+        return {
+          numStages: 4,
+          nodes: [0.5, 0.5, 1],
+          rkMatrix: [[0.5], [0, 0.5], [0, 0, 1]],
+          weights: [0.167, 0.333, 0.333, 0.167]
+        }
       default:
-        throw new Error('name does not match any default Runge Kutta methods')
+        throw new Error('preset does not match any preset Runge Kutta methods')
     }
   }
 
-  static validate(numStages, nodes, rkMatrix, weights) {
+  static validate({ numStages, nodes, rkMatrix, weights }) {
     // numStages
     if (numStages < 1 || !Number.isInteger(numStages)) {
       throw new Error('numStages must be an integer greater than or equal to 1')
     }
+
     // nodes
-    if (!(nodes instanceof Array) || nodes.length !== numStages - 1) {
+    if (!Array.isArray(nodes) || nodes.length !== numStages - 1) {
       throw new Error(
         'nodes must be an array with length equal to (numStages - 1)'
       )
@@ -89,17 +92,18 @@ export default class RungeKuttaMethod {
         'each node must be a number between 0 (inclusive) and 1 (inclusive)'
       )
     }
+
     // rkMatrix
-    if (!(rkMatrix instanceof Array) || rkMatrix.length !== numStages - 1) {
+    if (!Array.isArray(rkMatrix) || rkMatrix.length !== numStages - 1) {
       throw new Error(
         'rkMatrix must be an array with length equal to (numStages - 1)'
       )
     }
     rkMatrix.forEach((rkEntry, entryIndex) => {
-      if (!(rkEntry instanceof Array)) {
-        throw new Error('each entry in rkMatrix must be an instanceof Array')
+      if (!Array.isArray(rkEntry)) {
+        throw new Error('each entry in rkMatrix must be an array')
       }
-      if (!(rkEntry instanceof Array) || rkEntry.length !== entryIndex + 1) {
+      if (!Array.isArray(rkEntry) || rkEntry.length !== entryIndex + 1) {
         throw new Error(
           `each entry in rkMatrix must have a length equal to (entryIndex + 1). Entry provided at index ${entryIndex} has length equal to ${
             rkEntry.length
@@ -113,8 +117,9 @@ export default class RungeKuttaMethod {
         )
       }
     })
+
     // weights
-    if (!(weights instanceof Array) || weights.length !== numStages) {
+    if (!Array.isArray(weights) || weights.length !== numStages) {
       throw new Error('weights must be an array with length equal to numStages')
     }
     if (weights.some((weight) => weight < 0 || weight > 1)) {
@@ -130,9 +135,36 @@ export default class RungeKuttaMethod {
       )
       // throw new Error('sum of all weights must equal 1');
     }
+
+    // // weightsAdaptive
+    // if (weightsAdaptive) {
+    //   if (
+    //     !Array.isArray(weightsAdaptive) ||
+    //     weightsAdaptive.length !== numStages
+    //   ) {
+    //     throw new Error(
+    //       'weightsAdaptive must be an array with length equal to numStages'
+    //     )
+    //   }
+    //   if (weightsAdaptive.some((weight) => weight < 0 || weight > 1)) {
+    //     throw new Error(
+    //       'each weight must be a number between 0 (inclusive) and 1 (inclusive)'
+    //     )
+    //   }
+    //   // TODO: handle fractional rounding errors
+    //   const weightSum = weightsAdaptive.reduce((sum, weight) => sum + weight, 0)
+    //   if (weightSum !== 1) {
+    //     console.warn(
+    //       `sum of weightsAdaptive is not equal to 1. Current sum is ${weightSum}`
+    //     )
+    //     // throw new Error('sum of all weightsAdaptive must equal 1');
+    //   }
+    // }
+
+    return true
   }
 
-  yNextScalar(dy_dt, t, y, stepSize) {
+  nextScalar(dy_dt, t, y, stepSize) {
     const slopes = [...Array(this.numStages)]
 
     let weightedSumSlopes = 0
@@ -151,10 +183,12 @@ export default class RungeKuttaMethod {
       weightedSumSlopes += this.weights[i] * slopes[i]
     }
 
-    return y + stepSize * weightedSumSlopes
+    y += stepSize * weightedSumSlopes
+    const error = 0.5
+    return { y, error }
   }
 
-  yNextArray(dy_dt, t, y, stepSize) {
+  nextArray(dy_dt, t, y, stepSize) {
     const slopes = [...Array(this.numStages)]
 
     let weightedSumSlopes = y.map(() => 0)
@@ -182,24 +216,20 @@ export default class RungeKuttaMethod {
     return addArrays(y, multArray(stepSize, weightedSumSlopes))
   }
 
-  yNext(dy_dt, t, y, stepSize) {
+  next(dy_dt, t, y, stepSize) {
     return typeof y === 'number'
-      ? this.yNextScalar(dy_dt, t, y, stepSize)
-      : this.yNextArray(dy_dt, t, y, stepSize)
+      ? this.nextScalar(dy_dt, t, y, stepSize)
+      : this.nextArray(dy_dt, t, y, stepSize)
   }
 
-  *makeIterator(
-    dy_dt,
-    yInitial,
-    // Array: [tInitial, tFinal] || Number: tFinal >> [0, tFinal]
-    tRange,
-    stepSize = 1
-  ) {
+  *makeIterator(dy_dt, yInitial, tRange, stepSize = 1) {
+    // slopes
     // k_1 = dy_dt(t_n, y_n)
     // k_2 = f(k_1) = dy_dt(t_n + h * c_2, y_n + h * (a_21 * k_1))
     // k_s = f(k_(s-1)) = dy_dt(t_n + h * c_s, y_n + h * (a_s1*k_1 + a_s2*k_2 + ... + a_s(s-1)*k_(s-1)))
     // y_(n+1) = y_n + h * (b_1*k_1 + b_2*k_2 + ... + b_s*k_s);
 
+    // Array: [tInitial, tFinal] || Number: tFinal >> [0, tFinal]
     let tInitial, tFinal
     if (Array.isArray(tRange)) {
       ;[tInitial, tFinal] = tRange
@@ -216,15 +246,21 @@ export default class RungeKuttaMethod {
       )
     }
 
-    yield { t: tInitial, y: yInitial }
-    let y = yInitial
-    for (let t = tInitial; t <= tFinal; t += stepSize) {
-      y = this.yNext(dy_dt, t, y, stepSize)
-      yield { t: t, y: y }
+    let t = tInitial,
+      y = yInitial,
+      step = 0,
+      error = 0,
+      errorGlobal = 0
+    yield { t, y, step, error, errorGlobal }
+    for (t += stepSize; t <= tFinal; t += stepSize) {
+      ;({ y, error } = this.next(dy_dt, t, y, stepSize))
+      step++
+      errorGlobal += error
+      yield { t, y, step, error, errorGlobal }
     }
   }
 }
 
-export const EulerMethod = new RungeKuttaMethod('euler')
-export const MidpointMethod = new RungeKuttaMethod('midpoint')
-export const RK4Method = new RungeKuttaMethod('rk4')
+export const EulerMethod = new RungeKuttaMethod({ preset: 'euler' })
+export const MidpointMethod = new RungeKuttaMethod({ preset: 'midpoint' })
+export const RK4Method = new RungeKuttaMethod({ preset: 'rk4' })

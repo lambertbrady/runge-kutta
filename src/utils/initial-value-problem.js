@@ -20,7 +20,7 @@ export default class InitialValueProblem {
     // validation
     if (!(rkMethod instanceof RungeKuttaMethod)) {
       if (typeof rkMethod === 'string') {
-        rkMethod = new RungeKuttaMethod(rkMethod)
+        rkMethod = new RungeKuttaMethod({ preset: rkMethod })
       } else {
         throw new Error(
           'First argument must be string or instanceof RungeKuttaMethod'

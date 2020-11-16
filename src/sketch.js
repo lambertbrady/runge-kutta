@@ -1,11 +1,6 @@
 // import RungeKuttaMethod from './utils/runge-kutta-method'
 import InitialValueProblem from './utils/initial-value-problem'
 
-// Euler Method: only consistent method with 1 stage
-// const eulerMethod = new RungeKuttaMethod('euler')
-// const midpointMethod = new RungeKuttaMethod('midpoint')
-// const rk4Method = new RungeKuttaMethod('rk4')
-
 ///////
 const y0 = 1
 // const h = 1
@@ -22,12 +17,12 @@ const solutionArr3 = IVP.solve('midpoint', 1)
 const solutionArr4 = IVP.solve('midpoint', 0.5)
 const solutionArr5 = IVP.solve('rk4', 1)
 const solutionArr6 = IVP.solve('rk4', 0.5)
-// console.log(solutionArr1)
-// console.log(solutionArr2)
-// console.log(solutionArr3)
-// console.log(solutionArr4)
-// console.log(solutionArr5)
-// console.log(solutionArr6)
+console.log(solutionArr1)
+console.log(solutionArr2)
+console.log(solutionArr3)
+console.log(solutionArr4)
+console.log(solutionArr5)
+console.log(solutionArr6)
 
 // const solutionIterator1 = IVP.makeIterator('euler', 0.5)
 // const solutionIterator2 = IVP.makeIterator('euler', 1)
