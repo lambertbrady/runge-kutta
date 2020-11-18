@@ -3,7 +3,7 @@ function addArrays(A, B) {
 }
 
 function multArray(scalar, arr) {
-  // swap variables if needed, so order of argument types doesn't matter
+  // swap variables if needed, so order of argument order doesn't matter
   if (Array.isArray(scalar)) {
     ;[arr, scalar] = [scalar, arr]
   }
@@ -55,18 +55,25 @@ export default class RungeKuttaMethod {
   static getPresetConfig(preset) {
     switch (preset) {
       case 'euler':
-        return { numStages: 1, nodes: [], rkMatrix: [], weights: [1] }
+        return { numStages: 1, nodes: [0], rkMatrix: [], weights: [1] }
       case 'midpoint':
         return {
           numStages: 2,
-          nodes: [0.5],
+          nodes: [0, 0.5],
           rkMatrix: [[0.5]],
           weights: [0, 1]
+        }
+      case 'heun':
+        return {
+          numStages: 2,
+          nodes: [0, 1],
+          rkMatrix: [[1]],
+          weights: [0.5, 0.5]
         }
       case 'rk4':
         return {
           numStages: 4,
-          nodes: [0.5, 0.5, 1],
+          nodes: [0, 0.5, 0.5, 1],
           rkMatrix: [[0.5], [0, 0.5], [0, 0, 1]],
           weights: [0.167, 0.333, 0.333, 0.167]
         }
@@ -83,9 +90,10 @@ export default class RungeKuttaMethod {
 
     // nodes
     if (!Array.isArray(nodes) || nodes.length !== numStages - 1) {
-      throw new Error(
-        'nodes must be an array with length equal to (numStages - 1)'
-      )
+      throw new Error('nodes must be an array with length equal to numStages')
+    }
+    if (nodes[0] !== 0) {
+      throw new Error('first node must be 0')
     }
     if (nodes.some((node) => node < 0 || node > 1)) {
       throw new Error(
@@ -164,7 +172,9 @@ export default class RungeKuttaMethod {
     return true
   }
 
-  nextScalar(dy_dt, t, y, stepSize) {
+  stepScalar(dy_dt, y, t, stepSize) {
+    // true if dy_dt is independent of t, i.e., f(y,t) = f(y)
+    const isAutonomous = dy_dt.length < 2
     const slopes = [...Array(this.numStages)]
 
     let weightedSumSlopes = 0
@@ -174,21 +184,22 @@ export default class RungeKuttaMethod {
         weightedSumCoefficients += this.rkMatrix[i - 1][j] * slopes[j]
       }
 
-      // TODO: if dy_dt is independent of t, calculation of t is unnecessary
       slopes[i] = dy_dt(
         y + stepSize * weightedSumCoefficients,
-        t + stepSize * this.nodes[i - 1]
+        !isAutonomous && t + stepSize * this.nodes[i]
       )
 
       weightedSumSlopes += this.weights[i] * slopes[i]
     }
 
     y += stepSize * weightedSumSlopes
-    const error = 0.5
-    return { y, error }
+    const stepError = 0.5
+    return { y, stepError }
   }
 
-  nextArray(dy_dt, t, y, stepSize) {
+  stepArray(dy_dt, y, t, stepSize) {
+    // true if dy_dt is independent of t, i.e., f(y,t) = f(y)
+    const isAutonomous = dy_dt.length < 2
     const slopes = [...Array(this.numStages)]
 
     let weightedSumSlopes = y.map(() => 0)
@@ -201,10 +212,9 @@ export default class RungeKuttaMethod {
         )
       }
 
-      // TODO: if dy_dt is independent of t, calculation of t is unnecessary
       slopes[i] = dy_dt(
         addArrays(y, multArray(stepSize, weightedSumCoefficients)),
-        t + stepSize * this.nodes[i - 1]
+        isAutonomous && t + stepSize * this.nodes[i]
       )
 
       weightedSumSlopes = addArrays(
@@ -213,54 +223,50 @@ export default class RungeKuttaMethod {
       )
     }
 
-    return addArrays(y, multArray(stepSize, weightedSumSlopes))
+    y = addArrays(y, multArray(stepSize, weightedSumSlopes))
+    return { y, stepError }
   }
 
-  next(dy_dt, t, y, stepSize) {
+  step(dy_dt, y, t, stepSize) {
     return typeof y === 'number'
-      ? this.nextScalar(dy_dt, t, y, stepSize)
-      : this.nextArray(dy_dt, t, y, stepSize)
+      ? this.stepScalar(dy_dt, y, t, stepSize)
+      : this.stepArray(dy_dt, y, t, stepSize)
   }
 
-  *makeIterator(dy_dt, yInitial, tRange, stepSize = 1) {
+  *makeIterator({ dy_dt, yInitial, tInitial = 0, tFinal, stepSize = 1 }) {
     // slopes
     // k_1 = dy_dt(t_n, y_n)
     // k_2 = f(k_1) = dy_dt(t_n + h * c_2, y_n + h * (a_21 * k_1))
     // k_s = f(k_(s-1)) = dy_dt(t_n + h * c_s, y_n + h * (a_s1*k_1 + a_s2*k_2 + ... + a_s(s-1)*k_(s-1)))
     // y_(n+1) = y_n + h * (b_1*k_1 + b_2*k_2 + ... + b_s*k_s);
 
-    // Array: [tInitial, tFinal] || Number: tFinal >> [0, tFinal]
-    let tInitial, tFinal
-    if (Array.isArray(tRange)) {
-      ;[tInitial, tFinal] = tRange
-    } else if (typeof tRange === 'number') {
-      tInitial = 0
-      tFinal = tRange
-    } else {
-      throw new Error('third argument must be array or number')
-    }
-
     if (!(typeof dy_dt(yInitial, tInitial) === typeof yInitial)) {
       throw new Error(
-        'Return value of first argument must match type of second argument, such that typeof f(y,t) === typeof y'
+        'Return value of dy_dt must have the same type as yInitial'
       )
     }
 
     let t = tInitial,
       y = yInitial,
       step = 0,
-      error = 0,
-      errorGlobal = 0
-    yield { t, y, step, error, errorGlobal }
-    for (t += stepSize; t <= tFinal; t += stepSize) {
-      ;({ y, error } = this.next(dy_dt, t, y, stepSize))
+      stepError = 0,
+      accumulatedError = 0
+
+    yield { t, y, step, stepError, accumulatedError }
+
+    t += stepSize
+    while (t <= tFinal) {
+      ;({ y, stepError } = this.step(dy_dt, y, t, stepSize))
       step++
-      errorGlobal += error
-      yield { t, y, step, error, errorGlobal }
+      accumulatedError += stepError
+      yield { t, y, step, stepError, accumulatedError }
+
+      t += stepSize
     }
   }
 }
 
 export const EulerMethod = new RungeKuttaMethod({ preset: 'euler' })
 export const MidpointMethod = new RungeKuttaMethod({ preset: 'midpoint' })
+export const HeunMethod = new RungeKuttaMethod({ preset: 'heun' })
 export const RK4Method = new RungeKuttaMethod({ preset: 'rk4' })

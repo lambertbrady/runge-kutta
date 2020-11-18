@@ -3,7 +3,6 @@ import limitIterable from './limit-iterable'
 
 export default class InitialValueProblem {
   // first order IVP
-  // constructor(dy_dt, yInitial, ...tRanges) {
   constructor(dy_dt, yInitial, tInitial = 0) {
     // dy_dt: Function(y: number || array, t: number): number || array
     // y'(t) = f(y(t), t)
@@ -16,39 +15,40 @@ export default class InitialValueProblem {
       typeof this.yInitial === 'number' ? 1 : this.yInitial.length
   }
 
-  *makeIterator(rkMethod, stepSize, tFinal, limit, limitCallback) {
+  *makeIterator({ rkMethod, stepSize, tFinal, limit, limitCallback }) {
     // validation
     if (!(rkMethod instanceof RungeKuttaMethod)) {
       if (typeof rkMethod === 'string') {
         rkMethod = new RungeKuttaMethod({ preset: rkMethod })
       } else {
         throw new Error(
-          'First argument must be string or instanceof RungeKuttaMethod'
+          'rkMethod must be string or instanceof RungeKuttaMethod'
         )
       }
     }
 
-    const rkIterator = rkMethod.makeIterator(
-      this.dy_dt,
-      this.yInitial,
-      [this.tInitial, tFinal],
+    const rkIterator = rkMethod.makeIterator({
+      dy_dt: this.dy_dt,
+      yInitial: this.yInitial,
+      tInitial: this.tInitial,
+      tFinal,
       stepSize
-    )
+    })
     yield* limit ? limitIterable(rkIterator, limit, limitCallback) : rkIterator
   }
 
-  solve(
+  solve({
     rkMethod,
     stepSize,
-    tFinal = this.tInitial + 20 * stepSize,
+    tFinal,
     limit = 1000,
     limitCallback = () =>
       console.warn(
         'Solution exited early. If more elements are needed, change limit'
       )
-  ) {
+  }) {
     return [
-      ...this.makeIterator(rkMethod, stepSize, tFinal, limit, limitCallback)
+      ...this.makeIterator({ rkMethod, stepSize, tFinal, limit, limitCallback })
     ]
   }
 }

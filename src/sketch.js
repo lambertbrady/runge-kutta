@@ -11,12 +11,20 @@ console.log('---')
 const IVP = new InitialValueProblem(rkFunc, y0)
 // const IVPVec = new InitialValueProblem(rkFuncArr, [1, 2])
 // const solutionArr1 = IVPVec.solve('euler', 1)
-const solutionArr1 = IVP.solve('euler', 1)
-const solutionArr2 = IVP.solve('euler', 0.5)
-const solutionArr3 = IVP.solve('midpoint', 1)
-const solutionArr4 = IVP.solve('midpoint', 0.5)
-const solutionArr5 = IVP.solve('rk4', 1)
-const solutionArr6 = IVP.solve('rk4', 0.5)
+const solutionArr1 = IVP.solve({ rkMethod: 'euler', stepSize: 1, tFinal: 15 })
+const solutionArr2 = IVP.solve({ rkMethod: 'euler', stepSize: 0.5, tFinal: 15 })
+const solutionArr3 = IVP.solve({
+  rkMethod: 'midpoint',
+  stepSize: 1,
+  tFinal: 15
+})
+const solutionArr4 = IVP.solve({
+  rkMethod: 'midpoint',
+  stepSize: 0.5,
+  tFinal: 15
+})
+const solutionArr5 = IVP.solve({ rkMethod: 'rk4', stepSize: 1, tFinal: 15 })
+const solutionArr6 = IVP.solve({ rkMethod: 'rk4', stepSize: 0.5, tFinal: 15 })
 console.log(solutionArr1)
 console.log(solutionArr2)
 console.log(solutionArr3)
