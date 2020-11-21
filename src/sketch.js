@@ -1,18 +1,26 @@
-// import RungeKuttaMethod from './utils/runge-kutta-method'
 import InitialValueProblem from './utils/initial-value-problem'
 
 ///////
 const y0 = 1
 // const h = 1
-const rkFunc = (y) => y
+// const rkFunc = (y) => y
+const rkFunc = (y, t) => y ** 0.5 * t * 2
 // const rkFuncArr = (y) => [y[0], y[1]]
 
 console.log('---')
 const IVP = new InitialValueProblem(rkFunc, y0)
 // const IVPVec = new InitialValueProblem(rkFuncArr, [1, 2])
 // const solutionArr1 = IVPVec.solve('euler', 1)
-const solutionArr1 = IVP.solve({ rkMethod: 'euler', stepSize: 1, tFinal: 15 })
-const solutionArr2 = IVP.solve({ rkMethod: 'euler', stepSize: 0.5, tFinal: 15 })
+const solutionArr1 = IVP.solve({
+  rkMethod: 'eulerAdaptive',
+  stepSize: 1,
+  tFinal: 15
+})
+const solutionArr2 = IVP.solve({
+  rkMethod: 'eulerAdaptive',
+  stepSize: 0.5,
+  tFinal: 15
+})
 const solutionArr3 = IVP.solve({
   rkMethod: 'midpoint',
   stepSize: 1,
@@ -32,19 +40,27 @@ console.log(solutionArr4)
 console.log(solutionArr5)
 console.log(solutionArr6)
 
-// const solutionIterator1 = IVP.makeIterator('euler', 0.5)
-// const solutionIterator2 = IVP.makeIterator('euler', 1)
-// for (let val of solutionIterator1) {
-//   console.log(val)
-// }
-// for (let val of solutionIterator2) {
-//   console.log(val)
-// }
-// const IVPVec = new InitialValueProblem(rkFuncArr, [1, 2, 0.5], ...tRange)
-// const solutionIterator3 = IVPVec.makeIterator('euler', 1)
-// for (const vec of solutionIterator3) {
-//   console.log(vec)
-// }
+const drawSolution = (p, arr, color) => {
+  // scalefactor
+  const sf_t = 30
+  const sf_y = 0.015
+
+  p.push()
+  p.stroke(color)
+  p.strokeWeight(4)
+  p.beginShape()
+  arr.forEach(({ t, y }) => {
+    p.vertex(sf_t * t, sf_y * y)
+
+    p.push()
+    p.strokeWeight(1)
+    p.fill(color)
+    p.circle(sf_t * t, sf_y * y, 10)
+    p.pop()
+  })
+  p.endShape()
+  p.pop()
+}
 
 console.log('------')
 
@@ -64,106 +80,18 @@ export default function sketch(p) {
 
     // p.background('#fafafa')
 
-    // scalefactor
-    const sf_t = 40
-    const sf_y = 0.015
-
     p.noFill()
-    p.push()
-    p.stroke('red')
-    p.strokeWeight(4)
-    p.beginShape()
-    solutionArr1.forEach(({ t, y }) => {
-      p.vertex(sf_t * t, sf_y * y)
 
-      p.push()
-      p.strokeWeight(1)
-      p.fill('red')
-      p.circle(sf_t * t, sf_y * y, 10)
-      p.pop()
-    })
-    p.endShape()
-    p.pop()
-
-    p.beginShape()
-    p.stroke('blue')
-    p.strokeWeight(4)
-    solutionArr2.forEach(({ t, y }) => {
-      p.vertex(sf_t * t, sf_y * y)
-
-      p.push()
-      p.strokeWeight(1)
-      p.fill('blue')
-      p.circle(sf_t * t, sf_y * y, 10)
-      p.pop()
-    })
-    p.endShape()
+    drawSolution(p, solutionArr1, 'red')
+    drawSolution(p, solutionArr2, 'blue')
 
     p.translate(p.width / 3, 0)
-
-    p.noFill()
-    p.push()
-    p.stroke('red')
-    p.strokeWeight(4)
-    p.beginShape()
-    solutionArr3.forEach(({ t, y }) => {
-      p.vertex(sf_t * t, sf_y * y)
-
-      p.push()
-      p.strokeWeight(1)
-      p.fill('red')
-      p.circle(sf_t * t, sf_y * y, 10)
-      p.pop()
-    })
-    p.endShape()
-    p.pop()
-
-    p.beginShape()
-    p.stroke('blue')
-    p.strokeWeight(4)
-    solutionArr4.forEach(({ t, y }) => {
-      p.vertex(sf_t * t, sf_y * y)
-
-      p.push()
-      p.strokeWeight(1)
-      p.fill('blue')
-      p.circle(sf_t * t, sf_y * y, 10)
-      p.pop()
-    })
-    p.endShape()
+    drawSolution(p, solutionArr3, 'red')
+    drawSolution(p, solutionArr4, 'blue')
 
     p.translate(p.width / 3, 0)
-
-    p.noFill()
-    p.push()
-    p.stroke('red')
-    p.strokeWeight(4)
-    p.beginShape()
-    solutionArr5.forEach(({ t, y }) => {
-      p.vertex(sf_t * t, sf_y * y)
-
-      p.push()
-      p.strokeWeight(1)
-      p.fill('red')
-      p.circle(sf_t * t, sf_y * y, 10)
-      p.pop()
-    })
-    p.endShape()
-    p.pop()
-
-    p.beginShape()
-    p.stroke('blue')
-    p.strokeWeight(4)
-    solutionArr6.forEach(({ t, y }) => {
-      p.vertex(sf_t * t, sf_y * y)
-
-      p.push()
-      p.strokeWeight(1)
-      p.fill('blue')
-      p.circle(sf_t * t, sf_y * y, 10)
-      p.pop()
-    })
-    p.endShape()
+    drawSolution(p, solutionArr5, 'red')
+    drawSolution(p, solutionArr6, 'blue')
   }
 
   p.windowResized = () => {
