@@ -51,11 +51,7 @@ export default class RungeKuttaMethod {
       nodes,
       rkMatrix,
       weights,
-      weightsAdaptive,
-      errorThreshold,
-      stepSizeMin = 0.01,
-      stepSizeMax = 10,
-      maxSteps = 500
+      weightsAdaptive
     } = config.preset
       ? RungeKuttaMethod.getPresetConfig(config.preset)
       : RungeKuttaMethod.validate(config) && config
@@ -68,10 +64,6 @@ export default class RungeKuttaMethod {
 
     this.isAdaptive = weightsAdaptive !== undefined
     this.weightsAdaptive = weightsAdaptive
-    this.errorThreshold = errorThreshold
-    this.stepSizeMin = stepSizeMin
-    this.stepSizeMax = stepSizeMax
-    this.maxSteps = maxSteps
   }
 
   static getPresetConfig(preset) {
@@ -88,8 +80,8 @@ export default class RungeKuttaMethod {
         return {
           order: 2,
           numStages: 2,
-          nodes: [0, 0.5],
-          rkMatrix: [[0.5]],
+          nodes: [0, 1 / 2],
+          rkMatrix: [[1 / 2]],
           weights: [0, 1]
         }
       case 'heun':
@@ -98,15 +90,15 @@ export default class RungeKuttaMethod {
           numStages: 2,
           nodes: [0, 1],
           rkMatrix: [[1]],
-          weights: [0.5, 0.5]
+          weights: [1 / 2, 1 / 2]
         }
       case 'rk4':
         return {
           order: 4,
           numStages: 4,
-          nodes: [0, 0.5, 0.5, 1],
-          rkMatrix: [[0.5], [0, 0.5], [0, 0, 1]],
-          weights: [0.167, 0.333, 0.333, 0.167]
+          nodes: [0, 1 / 2, 1 / 2, 1],
+          rkMatrix: [[1 / 2], [0, 1 / 2], [0, 0, 1]],
+          weights: [1 / 6, 1 / 3, 1 / 3, 1 / 6]
         }
       case 'eulerAdaptive':
         return {
@@ -114,9 +106,23 @@ export default class RungeKuttaMethod {
           numStages: 2,
           nodes: [0, 1],
           rkMatrix: [[1]],
-          weights: [0.5, 0.5],
-          weightsAdaptive: [1, 0],
-          errorThreshold: 10
+          weights: [1 / 2, 1 / 2],
+          weightsAdaptive: [1, 0]
+        }
+      case 'rkf45':
+        return {
+          order: 4,
+          numStages: 6,
+          nodes: [0, 1 / 4, 3 / 8, 12 / 13, 1, 1 / 2],
+          rkMatrix: [
+            [1 / 4],
+            [3 / 32, 9 / 32],
+            [1932 / 2197, -7200 / 2197, 7296 / 2197],
+            [439 / 216, -8, 3680 / 513, -845 / 4104],
+            [-8 / 27, 2, -3544 / 2565, 1859 / 4104, -11 / 40]
+          ],
+          weights: [16 / 135, 0, 6656 / 12825, 28561 / 56430, -9 / 50, 2 / 55],
+          weightsAdaptive: [25 / 216, 0, 1408 / 2565, 2197 / 4104, -1 / 5, 0]
         }
       default:
         throw new Error('preset does not match any preset Runge Kutta methods')
@@ -227,27 +233,46 @@ export default class RungeKuttaMethod {
 
       slopes[i] = dy_dt(
         y + stepSize * sumCoefficients,
-        !isAutonomous && t + stepSize * this.nodes[i]
+        isAutonomous ? undefined : t + stepSize * this.nodes[i]
       )
 
       weightedSumSlopes += this.weights[i] * slopes[i]
     }
 
-    return { y: y + stepSize * weightedSumSlopes, stepSize }
+    return {
+      y: y + stepSize * weightedSumSlopes,
+      t: t + stepSize,
+      stepSize
+    }
   }
 
-  calcAdaptedStepSize(stepSize, stepError, safetyFactor = 0.9) {
+  calcAdaptedStepSize(stepSize, stepError, errorThreshold, safetyFactor) {
+    // adapted from "Adaptive Stepsize Runge-Kutta Integration" by William H. Press and Saul A. Teukolsky
+    // COMPUTERS IN PHYSICS, VOL. 6, NO.2, MAR/APR 1992, p. 188 - 191
+    // https://aip.scitation.org/doi/pdf/10.1063/1.4823060
     const exponentDivisor =
-      this.errorThreshold >= stepError ? this.order + 1 : this.order
+      errorThreshold >= stepError ? this.order + 1 : this.order
     return (
       stepSize *
       safetyFactor *
-      Math.abs(this.errorThreshold / stepError) ** (1 / exponentDivisor)
+      Math.abs(errorThreshold / stepError) ** (1 / exponentDivisor)
     )
   }
 
-  stepScalarAdaptive(dy_dt, y, t, stepSize) {
-    // true if dy_dt is independent of t, i.e., f(y,t) = f(y)
+  stepScalarAdaptive(parameters) {
+    let {
+      dy_dt,
+      y,
+      t,
+      stepSize,
+      stepSizeMin,
+      stepSizeMax,
+      errorThreshold,
+      safetyFactor,
+      stepAttempts = 1
+    } = parameters
+
+    // true if dy_dt is independent of t, i.e., fn(y,t) = fn(y)
     const isAutonomous = dy_dt.length < 2
     const slopes = [...Array(this.numStages)]
 
@@ -259,10 +284,11 @@ export default class RungeKuttaMethod {
         weightedSumCoefficients += this.rkMatrix[i - 1][j] * slopes[j]
       }
 
-      const yInput = y + stepSize * weightedSumCoefficients
-      slopes[i] = isAutonomous
-        ? dy_dt(yInput)
-        : dy_dt(yInput, t + stepSize * this.nodes[i])
+      // skip t calculation if function is autonomous
+      slopes[i] = dy_dt(
+        y + stepSize * weightedSumCoefficients,
+        isAutonomous ? undefined : t + stepSize * this.nodes[i]
+      )
 
       weightedSumSlopesHigh += this.weights[i] * slopes[i]
       weightedSumSlopesLow += this.weightsAdaptive[i] * slopes[i]
@@ -270,38 +296,52 @@ export default class RungeKuttaMethod {
 
     const yHigh = y + stepSize * weightedSumSlopesHigh
     const yLow = y + stepSize * weightedSumSlopesLow
+    // local error estimate is the difference between higher and lower order method results
     const stepError = yHigh - yLow
+    // step failed, need to retry with smaller stepSize if possible
+    const stepFailed = stepError > errorThreshold
 
-    // failed, need to retry with smaller stepSize if possible
-    const stepFailed = stepError > this.errorThreshold
-    if (stepFailed && stepSize === this.stepSizeMin) {
-      console.warn(
-        `stepError is greater than errorThreshold, but stepSize is at a minimum. Decrease value of stepSizeMin for more accurate results, or increase errorThreshold if current accuracy is acceptable.`
-      )
-    }
-
-    // no need to perform adaptedStepSize calculation if stepSize can't be changed from min or max value
+    // adaptedStepSize is clamped between stepSizeMin and stepSizeMax, so skip calculation if stepSize can't be changed from min or max value
+    // i.e., skip if step failed but stepSize can't be decreased, or if step succeeded but stepSize can't be increased
     const adaptedStepSize =
-      (stepFailed && stepSize === this.stepSizeMin) ||
-      (!stepFailed && stepSize === this.stepSizeMax)
+      (stepFailed && stepSize === stepSizeMin) ||
+      (!stepFailed && stepSize === stepSizeMax)
         ? stepSize
         : clamp(
-            this.stepSizeMin,
-            this.calcAdaptedStepSize(stepSize, stepError),
-            this.stepSizeMax
+            stepSizeMin,
+            this.calcAdaptedStepSize(
+              stepSize,
+              stepError,
+              errorThreshold,
+              safetyFactor
+            ),
+            stepSizeMax
           )
 
-    // retry with smaller stepSize if stepError is too large and current stepSize can be decreased
-    // otherwise, return result
-    // local extrapolation - use higher order value for y, even though error refers to lower order result
-    return stepFailed && stepSize > this.stepSizeMin
-      ? this.stepScalarAdaptive(dy_dt, y, t, adaptedStepSize)
-      : {
-          y: yHigh,
-          stepError,
-          stepSize,
-          stepSizeNext: adaptedStepSize
-        }
+    if (stepFailed && stepSize > stepSizeMin) {
+      // retry with smaller stepSize since stepError is too large and current stepSize can be decreased
+      return this.stepScalarAdaptive({
+        ...parameters,
+        stepSize: adaptedStepSize,
+        stepAttempts: ++stepAttempts
+      })
+    } else {
+      if (stepFailed && stepSize === stepSizeMin) {
+        console.warn(
+          `stepError is greater than errorThreshold, but stepSize is at a minimum. Decrease value of stepSizeMin for more accurate results, or increase errorThreshold if current accuracy is acceptable.`
+        )
+      }
+      // return result along with stepSize to use in next iteration
+      // local extrapolation: use higher order value for y, even though error refers to lower order result
+      return {
+        y: yHigh,
+        t: t + stepSize,
+        stepError,
+        stepSizeUsed: stepSize,
+        stepSizeNext: adaptedStepSize,
+        stepAttempts
+      }
+    }
   }
 
   stepArray(dy_dt, y, t, stepSize) {
@@ -321,7 +361,7 @@ export default class RungeKuttaMethod {
 
       slopes[i] = dy_dt(
         addArrays(y, multArray(stepSize, weightedSumCoefficients)),
-        isAutonomous && t + stepSize * this.nodes[i]
+        isAutonomous ? undefined : t + stepSize * this.nodes[i]
       )
 
       weightedSumSlopes = addArrays(
@@ -331,55 +371,85 @@ export default class RungeKuttaMethod {
     }
 
     y = addArrays(y, multArray(stepSize, weightedSumSlopes))
-    return { y, stepError }
+    return { y, t: t + stepSize, stepSize }
   }
 
   step(dy_dt, y, t, stepSize) {
-    return typeof y === 'number'
-      ? this.isAdaptive
-        ? this.stepScalarAdaptive(dy_dt, y, t, stepSize)
-        : this.stepScalar(dy_dt, y, t, stepSize)
-      : this.stepArray(dy_dt, y, t, stepSize)
-  }
-
-  *makeIterator({ dy_dt, yInitial, tInitial = 0, tFinal, stepSize = 1 }) {
     // slopes
     // k_1 = dy_dt(t_n, y_n)
     // k_2 = f(k_1) = dy_dt(t_n + h * c_2, y_n + h * (a_21 * k_1))
     // k_s = f(k_(s-1)) = dy_dt(t_n + h * c_s, y_n + h * (a_s1*k_1 + a_s2*k_2 + ... + a_s(s-1)*k_(s-1)))
     // y_(n+1) = y_n + h * (b_1*k_1 + b_2*k_2 + ... + b_s*k_s);
+    return typeof y === 'number'
+      ? this.stepScalar(dy_dt, y, t, stepSize)
+      : this.stepArray(dy_dt, y, t, stepSize)
+  }
 
+  *makeIterator({
+    dy_dt,
+    yInitial,
+    tInitial = 0,
+    tFinal = 10,
+    stepSize = 0.1,
+    stepSizeMin = 0.01,
+    stepSizeMax = 1,
+    errorThreshold = 10,
+    safetyFactor = 0.9,
+    maxSteps = 500
+  }) {
     if (!(typeof dy_dt(yInitial, tInitial) === typeof yInitial)) {
       throw new Error(
         'Return value of dy_dt must have the same type as yInitial'
       )
     }
 
-    let t = tInitial,
-      y = yInitial,
+    let y = yInitial,
+      t = tInitial,
       step = 0,
-      stepError = 0,
+      stepSizeUsed = null,
+      stepSizeNext = stepSize,
+      stepError = null,
       accumulatedError = 0,
-      stepSizeNext
+      stepAttempts = null,
+      accumulatedAttempts = 0
 
-    yield { t, y, step, stepError, accumulatedError }
-    step++
-    t += stepSize
+    while (t <= tFinal && step <= maxSteps) {
+      if (this.isAdaptive) {
+        yield {
+          y,
+          t,
+          stepSize: stepSizeUsed,
+          stepError,
+          accumulatedError,
+          stepAttempts,
+          accumulatedAttempts
+        }
+        ;({
+          y,
+          t,
+          stepSizeUsed,
+          stepSizeNext,
+          stepError,
+          stepAttempts
+        } = this.stepScalarAdaptive({
+          dy_dt,
+          y,
+          t,
+          stepSize: stepSizeNext,
+          stepSizeMin,
+          stepSizeMax,
+          errorThreshold,
+          safetyFactor
+        }))
 
-    while (t <= tFinal && step <= this.maxSteps) {
-      ;({ y, stepError, stepSize, stepSizeNext } = this.step(
-        dy_dt,
-        y,
-        t,
-        stepSize
-      ))
-      accumulatedError += stepError
-
-      yield { t, y, step, stepSize, stepError, accumulatedError }
+        accumulatedError += stepError
+        accumulatedAttempts += stepAttempts
+      } else {
+        yield { y, t, stepSize }
+        ;({ y, t, stepSize } = this.step(dy_dt, y, t, stepSize))
+      }
 
       step++
-      t += stepSize
-      stepSize = stepSizeNext || stepSize
     }
   }
 }
