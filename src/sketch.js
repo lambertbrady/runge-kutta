@@ -12,12 +12,12 @@ const IVP = new InitialValueProblem(rkFunc, y0)
 // const IVPVec = new InitialValueProblem(rkFuncArr, [1, 2])
 // const solutionArr1 = IVPVec.solve('euler', 1)
 const solutionArr1 = IVP.solve({
-  rkMethod: 'eulerAdaptive',
+  rkMethod: 'euler-heun',
   stepSize: 1,
   tFinal: 15
 })
 const solutionArr2 = IVP.solve({
-  rkMethod: 'eulerAdaptive',
+  rkMethod: 'euler-heun',
   stepSize: 0.5,
   tFinal: 15
 })
