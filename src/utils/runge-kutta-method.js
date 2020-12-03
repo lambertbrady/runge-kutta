@@ -63,6 +63,7 @@ export default class RungeKuttaMethod {
 
   static getPresetConfig(preset) {
     switch (preset) {
+      // explicit methods
       case 'euler':
         return {
           order: 1,
@@ -87,6 +88,48 @@ export default class RungeKuttaMethod {
           rkMatrix: [[1]],
           weights: [1 / 2, 1 / 2]
         }
+      case 'ralston':
+        // minimum truncation error
+        return {
+          order: 2,
+          numStages: 2,
+          nodes: [0, 2 / 3],
+          rkMatrix: [[2 / 3]],
+          weights: [1 / 4, 3 / 4]
+        }
+      case 'rk3':
+        return {
+          order: 3,
+          numStages: 3,
+          nodes: [0, 1 / 2, 1],
+          rkMatrix: [[1 / 2], [-1, 2]],
+          weights: [1 / 6, 2 / 3, 1 / 6]
+        }
+      case 'heun3':
+        return {
+          order: 3,
+          numStages: 3,
+          nodes: [0, 1 / 3, 2 / 3],
+          rkMatrix: [[1 / 3], [0, 2 / 3]],
+          weights: [1 / 4, 0, 3 / 4]
+        }
+      case 'ralston3':
+        return {
+          order: 3,
+          numStages: 3,
+          nodes: [0, 1 / 2, 3 / 4],
+          rkMatrix: [[1 / 2], [0, 3 / 4]],
+          weights: [2 / 9, 1 / 3, 4 / 9]
+        }
+      case 'ssprk3':
+        // Strong Stability Preserving Runge-Kutta
+        return {
+          order: 3,
+          numStages: 3,
+          nodes: [0, 1, 1 / 2],
+          rkMatrix: [[1], [1 / 4, 1 / 4]],
+          weights: [1 / 6, 1 / 6, 2 / 3]
+        }
       case 'rk4':
         // classic Runge–Kutta method
         return {
@@ -96,6 +139,20 @@ export default class RungeKuttaMethod {
           rkMatrix: [[1 / 2], [0, 1 / 2], [0, 0, 1]],
           weights: [1 / 6, 1 / 3, 1 / 3, 1 / 6]
         }
+      case 'ralston4':
+        // minimum truncation error
+        return {
+          order: 4,
+          numStages: 4,
+          nodes: [0, 0.4, 0.45573725, 1],
+          rkMatrix: [
+            [0.4],
+            [0.29697761, 0.15875964],
+            [0.2181004, -3.05096516, 3.83286476]
+          ],
+          weights: [0.17476028, -0.55148066, 1.2055356, 0.17118478]
+        }
+      // Adaptive/Embedded Methods
       case 'euler-midpoint':
         // combined Euler and Midpoint methods
         return {
@@ -114,7 +171,18 @@ export default class RungeKuttaMethod {
           rkMatrix: [[1]],
           weights: { high: [1 / 2, 1 / 2], low: [1, 0] }
         }
-      case 'ode23':
+      case 'rkf12':
+        return {
+          order: 1,
+          numStages: 3,
+          nodes: [0, 1 / 2, 1],
+          rkMatrix: [[1 / 2], [1 / 256, 255 / 256]],
+          weights: {
+            high: [1 / 512, 255 / 256, 1 / 512],
+            low: [1 / 256, 255 / 256, 0]
+          }
+        }
+      case 'bs23':
         // Bogacki–Shampine method
         return {
           order: 2,
@@ -126,7 +194,7 @@ export default class RungeKuttaMethod {
             low: [7 / 24, 1 / 4, 1 / 3, 1 / 8]
           }
         }
-      case 'ode45':
+      case 'rkf45':
         // Runge–Kutta–Fehlberg method
         return {
           order: 4,
@@ -142,6 +210,66 @@ export default class RungeKuttaMethod {
           weights: {
             high: [16 / 135, 0, 6656 / 12825, 28561 / 56430, -9 / 50, 2 / 55],
             low: [25 / 216, 0, 1408 / 2565, 2197 / 4104, -1 / 5, 0]
+          }
+        }
+      case 'ck45':
+        // Cash-Karp method
+        return {
+          order: 4,
+          numStages: 6,
+          nodes: [0, 1 / 5, 3 / 10, 3 / 5, 1, 7 / 8],
+          rkMatrix: [
+            [1 / 5],
+            [3 / 40, 9 / 40],
+            [3 / 10, -9 / 10, 6 / 5],
+            [-11 / 54, 5 / 2, -70 / 27, 35 / 27],
+            [1631 / 55296, 175 / 512, 575 / 13824, 44275 / 110592, 253 / 4096]
+          ],
+          weights: {
+            high: [37 / 378, 0, 250 / 621, 125 / 594, 0, 512 / 1771],
+            low: [
+              2825 / 27648,
+              0,
+              18575 / 48384,
+              13525 / 55296,
+              277 / 14336,
+              1 / 4
+            ]
+          }
+        }
+      case 'dp45':
+        // Dormand-Prince method
+        return {
+          order: 4,
+          numStages: 7,
+          nodes: [0, 1 / 5, 3 / 10, 4 / 5, 8 / 9, 1, 1],
+          rkMatrix: [
+            [1 / 5],
+            [3 / 40, 9 / 40],
+            [44 / 45, -56 / 15, 32 / 9],
+            [19372 / 6561, -25360 / 2187, 64448 / 6561, -212 / 729],
+            [9017 / 3168, -355 / 33, 46732 / 5247, 49 / 176, -5103 / 18656],
+            [35 / 384, 0, 500 / 1113, 125 / 192, -2187 / 6784, 11 / 84]
+          ],
+          weights: {
+            high: [
+              35 / 384,
+              0,
+              500 / 1113,
+              125 / 192,
+              -2187 / 6784,
+              11 / 84,
+              0
+            ],
+            low: [
+              5179 / 57600,
+              0,
+              7571 / 16695,
+              393 / 640,
+              -92097 / 339200,
+              187 / 2100,
+              1 / 40
+            ]
           }
         }
       default:
@@ -402,10 +530,10 @@ export default class RungeKuttaMethod {
     yInitial,
     tInitial = 0,
     tFinal = 10,
-    stepSize = 0.1,
-    stepSizeMin = 0.01,
-    stepSizeMax = 1,
-    errorThreshold = 10,
+    stepSize = (tFinal - tInitial) / 10,
+    stepSizeMin = 0.01 * stepSize,
+    stepSizeMax = 10 * stepSize,
+    errorThreshold = 0.1 * stepSizeMin,
     safetyFactor = 0.9,
     useLocalExtrapolation = true,
     maxSteps = 500
@@ -468,19 +596,31 @@ export default class RungeKuttaMethod {
   }
 }
 
+// explicit methods
+// order 1
 export const EulerMethod = new RungeKuttaMethod({ preset: 'euler' })
+// order 2
 export const MidpointMethod = new RungeKuttaMethod({ preset: 'midpoint' })
 export const HeunMethod = new RungeKuttaMethod({ preset: 'heun' })
+export const RalstonMethod = new RungeKuttaMethod({ preset: 'ralston' })
+// order 3
+export const rk3Method = new RungeKuttaMethod({ preset: 'rk3' })
+export const Heun3Method = new RungeKuttaMethod({ preset: 'heun3' })
+export const Ralston3Method = new RungeKuttaMethod({ preset: 'ralston3' })
+export const SSPRK3Method = new RungeKuttaMethod({ preset: 'ssprk3' })
+// order 4
 export const RK4Method = new RungeKuttaMethod({ preset: 'rk4' })
-export const EulerHeunMethod = new RungeKuttaMethod({
-  preset: 'euler-heun'
-})
+export const Ralston4Method = new RungeKuttaMethod({ preset: 'ralston4' })
+// adaptive/embedded methods
+// order 1,2
+export const EulerHeunMethod = new RungeKuttaMethod({ preset: 'euler-heun' })
 export const EulerMidpointMethod = new RungeKuttaMethod({
   preset: 'euler-midpoint'
 })
-export const ODE23Method = new RungeKuttaMethod({
-  preset: 'ode23'
-})
-export const ODE45Method = new RungeKuttaMethod({
-  preset: 'ode45'
-})
+export const RKF12Method = new RungeKuttaMethod({ preset: 'rkf12' })
+// order 2,3
+export const BS23Method = new RungeKuttaMethod({ preset: 'bs23' })
+// order 4,5
+export const RKF45Method = new RungeKuttaMethod({ preset: 'rkf45' })
+export const CK45Method = new RungeKuttaMethod({ preset: 'ck45' })
+export const DP45Method = new RungeKuttaMethod({ preset: 'dp45' })

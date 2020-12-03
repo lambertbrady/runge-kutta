@@ -4,46 +4,30 @@ import InitialValueProblem from './utils/initial-value-problem'
 const y0 = 1
 // const h = 1
 // const rkFunc = (y) => y
-const rkFunc = (y, t) => y ** 0.5 * t * 2
+// const rkFunc = (y, t) => y ** 0.5 * t * 2
+const rkFunc = (y, t) => y * Math.sin(t) ** 2
+// const rkFunc = (y, t) => -2 * t * y ** 2
 // const rkFuncArr = (y) => [y[0], y[1]]
 
 console.log('---')
 const IVP = new InitialValueProblem(rkFunc, y0)
-// const IVPVec = new InitialValueProblem(rkFuncArr, [1, 2])
-// const solutionArr1 = IVPVec.solve('euler', 1)
-const solutionArr1 = IVP.solve({
-  rkMethod: 'euler-heun',
-  stepSize: 1,
-  tFinal: 15
-})
-const solutionArr2 = IVP.solve({
-  rkMethod: 'euler-heun',
-  stepSize: 0.5,
-  tFinal: 15
-})
-const solutionArr3 = IVP.solve({
-  rkMethod: 'midpoint',
-  stepSize: 1,
-  tFinal: 15
-})
-const solutionArr4 = IVP.solve({
-  rkMethod: 'midpoint',
-  stepSize: 0.5,
-  tFinal: 15
-})
-const solutionArr5 = IVP.solve({ rkMethod: 'rk4', stepSize: 1, tFinal: 15 })
-const solutionArr6 = IVP.solve({ rkMethod: 'rk4', stepSize: 0.5, tFinal: 15 })
-console.log(solutionArr1)
-console.log(solutionArr2)
-console.log(solutionArr3)
-console.log(solutionArr4)
-console.log(solutionArr5)
-console.log(solutionArr6)
+const ivpObj = { stepSize: 0.8, tFinal: 5 }
+// const method1 = IVP.solve({ ...ivpObj, rkMethod: 'euler' })
+// const method2 = IVP.solve({ ...ivpObj, rkMethod: 'ralston' })
+// const method3 = IVP.solve({ ...ivpObj, rkMethod: 'ralston3' })
+// const method4 = IVP.solve({ ...ivpObj, rkMethod: 'ralston4' })
+const method1 = IVP.solve({ ...ivpObj, rkMethod: 'rkf12' })
+const method2 = IVP.solve({ ...ivpObj, rkMethod: 'bs23' })
+const method3 = IVP.solve({ ...ivpObj, rkMethod: 'ck45' })
+console.log(method1)
+console.log(method2)
+console.log(method3)
 
 const drawSolution = (p, arr, color) => {
   // scalefactor
-  const sf_t = 30
-  const sf_y = 0.015
+  // const sf_t = p.windowWidth / ivpObj.tFinal
+  const sf_t = 250
+  const sf_y = 50
 
   p.push()
   p.stroke(color)
@@ -74,24 +58,15 @@ export default function sketch(p) {
   }
 
   p.draw = () => {
-    p.translate(0, p.height)
     // adjust axes so +x: right, +y: up, +z: towards
     p.scale(1, -1, 1)
-
-    // p.background('#fafafa')
-
+    p.translate(0, -p.height)
     p.noFill()
 
-    drawSolution(p, solutionArr1, 'red')
-    drawSolution(p, solutionArr2, 'blue')
-
-    p.translate(p.width / 3, 0)
-    drawSolution(p, solutionArr3, 'red')
-    drawSolution(p, solutionArr4, 'blue')
-
-    p.translate(p.width / 3, 0)
-    drawSolution(p, solutionArr5, 'red')
-    drawSolution(p, solutionArr6, 'blue')
+    drawSolution(p, method1, 'red')
+    drawSolution(p, method2, 'green')
+    drawSolution(p, method3, 'blue')
+    // drawSolution(p, method4, 'black')
   }
 
   p.windowResized = () => {
